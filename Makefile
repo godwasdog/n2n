@@ -1,101 +1,55 @@
-
-N2N_VERSION=2.1.0
-N2N_OSNAME=$(shell uname -p)
-
-########
-
-CC=gcc
-DEBUG?=-g3
-#OPTIMIZATION?=-O2
-WARN?=-Wall -Wshadow -Wpointer-arith -Wmissing-declarations -Wnested-externs
-
-#Ultrasparc64 users experiencing SIGBUS should try the following gcc options
-#(thanks to Robert Gibbon)
-PLATOPTS_SPARC64=-mcpu=ultrasparc -pipe -fomit-frame-pointer -ffast-math -finline-functions -fweb -frename-registers -mapp-regs
-
-N2N_DEFINES=
-N2N_OBJS_OPT=
-LIBS_EDGE_OPT=
-
-N2N_OPTION_AES?="yes"
-#N2N_OPTION_AES=no
-
-ifeq ($(N2N_OPTION_AES), "yes")
-    N2N_DEFINES+="-DN2N_HAVE_AES"
-    LIBS_EDGE_OPT+=-lcrypto
-endif
-
-CFLAGS+=$(DEBUG) $(OPTIMIZATION) $(WARN) $(OPTIONS) $(PLATOPTS) $(N2N_DEFINES)
-
-INSTALL=install
-MKDIR=mkdir -p
-
-INSTALL_PROG=$(INSTALL) -m755
-INSTALL_DOC=$(INSTALL) -m644
+#
+# Copyright (C) 2008 OpenWrt.org
+#
+# This is free software, licensed under the GNU General Public License v2.
 
 
-# DESTDIR set in debian make system
-PREFIX?=$(DESTDIR)/usr
-#BINDIR=$(PREFIX)/bin
-SBINDIR=$(PREFIX)/sbin
-MANDIR?=$(PREFIX)/share/man
-MAN1DIR=$(MANDIR)/man1
-MAN7DIR=$(MANDIR)/man7
-MAN8DIR=$(MANDIR)/man8
+include $(TOPDIR)/rules.mk
 
-N2N_LIB=n2n.a
-N2N_OBJS=n2n.o unix-scm.o n2n_keyfile.o wire.o minilzo.o twofish.o \
-         transform_null.o transform_tf.o transform_aes.o \
-         tuntap_freebsd.o tuntap_netbsd.o tuntap_linux.o tuntap_osx.o version.o
-LIBS_EDGE+=$(LIBS_EDGE_OPT)
-LIBS_SN=
+PKG_BRANCH:=trunk
+PKG_SOURCE_URL:=https://svn.ntop.org/svn/ntop/trunk/n2n
+PKG_REV:=$(shell LC_ALL=C svn info ${PKG_SOURCE_URL} | sed -ne's/^Last Changed Rev: //p')
 
-#For OpenSolaris (Solaris too?)
-ifeq ($(shell uname), SunOS)
-LIBS_EDGE+=-lsocket -lnsl
-LIBS_SN+=-lsocket -lnsl
-endif
+PKG_NAME:=n2n
+PKG_VERSION:=svn$(PKG_REV)
+PKG_RELEASE:=1
 
-APPS=edge
-APPS+=supernode
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.gz
+PKG_SOURCE_PROTO:=svn
+PKG_SOURCE_VERSION:=$(PKG_REV)
 
-DOCS=edge.8.gz supernode.1.gz n2n_v2.7.gz
+PKG_BUILD_DEPENDS:=
 
-all: $(APPS) $(DOCS)
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+PKG_INSTALL_DIR:=$(PKG_BUILD_DIR)
 
-edge: edge.c $(N2N_LIB) scm.h n2n_wire.h n2n.h Makefile
-	$(CC) $(CFLAGS) edge.c $(N2N_LIB) $(LIBS_EDGE) -o edge
 
-test: test.c $(N2N_LIB) n2n_wire.h n2n.h Makefile
-	$(CC) $(CFLAGS) test.c $(N2N_LIB) $(LIBS_EDGE) -o test
 
-supernode: sn.c $(N2N_LIB) n2n.h Makefile
-	$(CC) $(CFLAGS) sn.c $(N2N_LIB) $(LIBS_SN) -o supernode
+include $(INCLUDE_DIR)/package.mk
 
-benchmark: benchmark.c $(N2N_LIB) n2n_wire.h n2n.h Makefile
-	$(CC) $(CFLAGS) benchmark.c $(N2N_LIB) $(LIBS_SN) -o benchmark
+define Package/n2n
+  SECTION:=net
+  CATEGORY:=Network
+  TITLE:=VPN tunneling daemon
+  URL:=http://www.ntop.org/n2n/
+  SUBMENU:=VPN
+  DEPENDS:=libpthread
+endef
 
-.c.o: n2n.h n2n_keyfile.h n2n_transforms.h n2n_wire.h twofish.h scm.h Makefile
-	$(CC) $(CFLAGS) -c $<
 
-%.gz : %
-	gzip -c $< > $@
+define Build/Configure
+endef
 
-$(N2N_LIB): $(N2N_OBJS)
-	ar rcs $(N2N_LIB) $(N2N_OBJS)
-#	$(RANLIB) $@
+define Build/Compile
+	$(MAKE) CC="$(TARGET_CC)" -C $(PKG_BUILD_DIR)
+endef
 
-version.o: Makefile
-	$(CC) $(CFLAGS) -DN2N_VERSION='"$(N2N_VERSION)"' -DN2N_OSNAME='"$(N2N_OSNAME)"' -c version.c
 
-clean:
-	rm -rf $(N2N_OBJS) $(N2N_LIB) $(APPS) $(DOCS) test *.dSYM *~
+define Package/n2n/install
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/edge $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/supernode $(1)/usr/sbin/
+endef
 
-install: edge supernode edge.8.gz supernode.1.gz n2n_v2.7.gz
-	echo "MANDIR=$(MANDIR)"
-	$(MKDIR) $(SBINDIR) $(MAN1DIR) $(MAN7DIR) $(MAN8DIR)
-	$(INSTALL_PROG) supernode $(SBINDIR)/
-	$(INSTALL_PROG) edge $(SBINDIR)/
-	$(INSTALL_DOC) edge.8.gz $(MAN8DIR)/
-	$(INSTALL_DOC) supernode.1.gz $(MAN1DIR)/
-	$(INSTALL_DOC) n2n_v2.7.gz $(MAN7DIR)/
+$(eval $(call BuildPackage,n2n))
